@@ -1,0 +1,52 @@
+# Web Framework
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart
+
+# Database
+sqlalchemy>=2.0.23
+alembic>=1.13.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+# Pin bcrypt to 4.0.1 to fix passlib "password cannot be longer than 72 bytes" error
+bcrypt==4.0.1
+python-dotenv>=1.0.0
+
+# LangChain & Ecosystem
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+langchain-huggingface>=0.0.1
+
+# Vectorstore
+pinecone>=3.0.0
+
+# Embeddings
+# Keeping google-genai for now but adding local support
+google-generativeai>=0.5.4
+langchain-google-genai>=2.0.0
+sentence-transformers>=2.2.2
+
+# PDF Parsing
+pypdf>=3.17.0
+
+# Translation & Language Detection
+langdetect
+deep-translator
+
+# Utilities
+packaging>=24.2
+pydantic[email]>=2.7.0
+pydantic-settings
+requests
+tqdm
+email-validator
+
+# Logging
+loguru
+
+# Rate Limiting
+slowapi
