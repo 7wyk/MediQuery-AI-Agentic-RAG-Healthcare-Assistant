@@ -26,3 +26,15 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+
+# Virtual environments
+medicalAssistant/
+backend/medicalAssistant/
+
+# Database
+*.db
+*.sqlite
+
+# Uploaded files
+uploaded_docs/
+backend/uploaded_docs/

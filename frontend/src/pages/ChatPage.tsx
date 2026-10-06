@@ -1,23 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Navbar from '../components/layout/Navbar';
-import { Send, Loader, FileText, Trash2, Globe } from 'lucide-react';
-import chatService, { ChatResponse } from '../services/chat.service';
+import { Send, Loader, FileText, Trash2, Sparkles, Zap, CheckCircle, RefreshCw } from 'lucide-react';
+import chatService, { AgentMetadata } from '../services/chat.service';
 import { useAuth } from '../context/AuthContext';
+
+type RagMode = 'standard' | 'agentic';
 
 interface Message {
     role: 'user' | 'assistant';
     content: string;
     sources?: any[];
     timestamp: Date;
+    mode?: string;
+    agentMetadata?: AgentMetadata | null;
 }
 
 const ChatPage: React.FC = () => {
-    const { user } = useAuth();
+    const _auth = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [showSources, setShowSources] = useState(false);
     const [currentSources, setCurrentSources] = useState<any[]>([]);
+    const [ragMode, setRagMode] = useState<RagMode>('standard');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -43,13 +48,18 @@ const ChatPage: React.FC = () => {
         setLoading(true);
 
         try {
-            const response = await chatService.query({ question: input });
+            const response = await chatService.query({
+                question: input,
+                mode: ragMode,
+            });
 
             const assistantMessage: Message = {
                 role: 'assistant',
                 content: response.answer,
                 sources: response.sources,
                 timestamp: new Date(),
+                mode: response.mode,
+                agentMetadata: response.agent_metadata,
             };
 
             setMessages((prev) => [...prev, assistantMessage]);
@@ -106,6 +116,35 @@ const ChatPage: React.FC = () => {
                     </div>
                 </div>
 
+                {/* RAG Mode Selector */}
+                <div className="mb-4 flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Retrieval Mode:</span>
+                    <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                        <button
+                            onClick={() => setRagMode('standard')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                                ragMode === 'standard'
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                            }`}
+                        >
+                            <Zap className="w-3.5 h-3.5" />
+                            Standard RAG
+                        </button>
+                        <button
+                            onClick={() => setRagMode('agentic')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                                ragMode === 'agentic'
+                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                            }`}
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Agentic RAG
+                        </button>
+                    </div>
+                </div>
+
                 {/* Chat Messages */}
                 <div className="flex-1 card mb-6 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
@@ -133,6 +172,11 @@ const ChatPage: React.FC = () => {
                                                 : 'bg-gray-100 text-gray-900'
                                             }`}
                                     >
+                                        {/* Agentic RAG Status Badge & Steps */}
+                                        {message.role === 'assistant' && message.mode === 'agentic' && message.agentMetadata && (
+                                            <AgentStatusPanel metadata={message.agentMetadata} />
+                                        )}
+
                                         <p className="whitespace-pre-wrap">{message.content}</p>
                                         {message.sources && message.sources.length > 0 && (
                                             <button
@@ -152,8 +196,11 @@ const ChatPage: React.FC = () => {
 
                         {loading && (
                             <div className="flex justify-start">
-                                <div className="bg-gray-100 rounded-lg p-4">
+                                <div className="bg-gray-100 rounded-lg p-4 flex items-center gap-2">
                                     <Loader className="w-5 h-5 text-medical-blue animate-spin" />
+                                    {ragMode === 'agentic' && (
+                                        <span className="text-sm text-gray-500">Agentic RAG processing...</span>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -207,6 +254,37 @@ const ChatPage: React.FC = () => {
                         </div>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+};
+
+
+/**
+ * Displays high-level Agentic RAG execution steps.
+ * Only shows safe operational events — no chain-of-thought or internal prompts.
+ */
+const AgentStatusPanel: React.FC<{ metadata: AgentMetadata }> = ({ metadata }) => {
+    return (
+        <div className="mb-3 p-3 rounded-md bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200">
+            <div className="flex items-center gap-1.5 mb-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                    Agentic RAG
+                    {metadata.fallback_to_standard && ' (Fallback)'}
+                </span>
+            </div>
+            <div className="space-y-1">
+                {metadata.steps.map((step, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
+                        {step.toLowerCase().includes('refined') || step.toLowerCase().includes('rewrite') ? (
+                            <RefreshCw className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                        ) : (
+                            <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" />
+                        )}
+                        <span>{step}</span>
+                    </div>
+                ))}
             </div>
         </div>
     );

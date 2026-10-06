@@ -1,11 +1,12 @@
-# 🧠 MediQuery AI - Production Full-Stack RAG Application
+# 🧠 MediQuery AI - Production Full-Stack Agentic RAG Application
 
-**MediQuery AI** is a production-ready, full-stack medical document assistant powered by Retrieval-Augmented Generation (RAG) technology. Built with modern React frontend, FastAPI backend, local embeddings, JWT authentication, and comprehensive analytics.
+**MediQuery AI** is a production-ready, full-stack medical document assistant powered by Retrieval-Augmented Generation (RAG) technology with an **Agentic RAG** mode built on **LangGraph**. Features a modern React frontend, FastAPI backend, local embeddings, JWT authentication, and comprehensive analytics.
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
 
 ---
 
@@ -14,14 +15,24 @@
 ### Core Functionality
 - 📄 **Document Management** - Upload, manage, and delete medical PDFs with real-time processing
 - 🤖 **AI-Powered Chat** - Ask questions and get accurate, source-cited answers from your documents
+- 🧠 **Dual RAG Modes** - Switch between **Standard RAG** (single-pass) and **Agentic RAG** (LangGraph-powered multi-step reasoning)
 - 🔐 **Authentication** - JWT-based auth with role-based access control (Doctor/Student)
 - 📊 **Analytics Dashboard** - Track usage, queries, response times, and performance metrics
 - 🌍 **Multi-Language Support** - Query in any language with automatic translation
 - 🎨 **Modern UI** - Premium SaaS-grade interface with Tailwind CSS and smooth animations
 
+### Agentic RAG Features
+- **Query Analysis** - Normalizes user queries for optimal retrieval
+- **Relevance Grading** - LLM evaluates retrieved document relevance before answering
+- **Adaptive Query Rewriting** - Automatically rewrites queries when initial retrieval is insufficient
+- **Bounded Retry** - Maximum 2 retrieval attempts to prevent infinite loops
+- **Execution Transparency** - Real-time step-by-step status display (without exposing chain-of-thought)
+- **Graceful Fallback** - Falls back to Standard RAG if the agentic pipeline encounters errors
+
 ### Technical Features
 - **Local Embeddings** - Fast, unlimited document processing using HuggingFace (no API rate limits)
 - **RAG Pipeline** - LangChain + Groq LLaMA 3.3 70B + Pinecone vectorstore
+- **Agentic Orchestration** - LangGraph StateGraph with conditional routing and typed state
 - **User Isolation** - Documents stored in user-specific Pinecone namespaces
 - **Role-Based Prompting** - Tailored responses for medical professionals vs students
 - **Real-time Processing** - Upload progress tracking and status updates
@@ -42,6 +53,7 @@
 | **Embeddings** | HuggingFace (all-MiniLM-L6-v2) | Local embeddings (384 dimensions) |
 | **Vector DB** | Pinecone | Serverless vector database for semantic search |
 | **Orchestration** | LangChain | RAG pipeline and retrieval chain |
+| **Agentic RAG** | LangGraph | StateGraph workflow for multi-step retrieval |
 | **Translation** | deep-translator | Multi-language support |
 | **PDF Processing** | PyPDF | Document parsing and text extraction |
 
@@ -78,6 +90,7 @@ RAG-chatbot/
 │   │   │   ├── auth.py          # JWT, password hashing
 │   │   │   ├── vectorstore.py   # Embeddings, Pinecone
 │   │   │   ├── llm.py           # LLM chain, prompts
+│   │   │   ├── agentic_rag.py   # LangGraph Agentic RAG workflow
 │   │   │   ├── translation.py   # Multi-language
 │   │   │   └── analytics.py     # Usage tracking
 │   │   ├── middlewares/         # Middleware
@@ -184,6 +197,9 @@ RAG-chatbot/
    ```
 
 6. **Run the server**
+
+    medicalAssistant\Scripts\activate
+
    ```bash
    python -m uvicorn app.main:app --reload
    ```
@@ -288,10 +304,50 @@ RAG-chatbot/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/chat/query` | Ask question (English) |
+| POST | `/api/v1/chat/query` | Ask question — supports `mode: "standard"` or `"agentic"` |
 | POST | `/api/v1/chat/query-multilang` | Ask question (any language) |
 | GET | `/api/v1/chat/history` | Get chat history |
 | DELETE | `/api/v1/chat/history` | Clear chat history |
+
+#### Chat Query Request Body
+
+```json
+{
+  "question": "What are the complications of diabetes?",
+  "language": "en",
+  "mode": "agentic"
+}
+```
+
+- `mode` is optional (default: `"standard"`). Set to `"agentic"` to use the LangGraph Agentic RAG pipeline.
+
+#### Agentic RAG Response (additional fields)
+
+```json
+{
+  "answer": "...",
+  "sources": [...],
+  "response_time": 4.2,
+  "language": "en",
+  "mode": "agentic",
+  "agent_metadata": {
+    "retrieval_attempts": 2,
+    "retrieval_refined": true,
+    "documents_retrieved": 5,
+    "relevance_score": 0.87,
+    "steps": [
+      "Query analyzed",
+      "Retrieved 5 documents (attempt 1)",
+      "Context relevance: insufficient (score: 0.35)",
+      "Query refined",
+      "Retrieved 5 documents (attempt 2)",
+      "Context relevance: sufficient (score: 0.87)",
+      "Final answer generated"
+    ],
+    "fallback_to_standard": false
+  }
+}
+```
 
 ### Analytics Endpoints
 
@@ -305,7 +361,7 @@ RAG-chatbot/
 
 ## 🏗️ Architecture & Data Flow
 
-### RAG Pipeline
+### Standard RAG Pipeline
 
 ```
 User Question
@@ -314,14 +370,62 @@ User Question
     ↓
 [2] Search Pinecone (user's namespace)
     ↓
-[3] Retrieve Top-K Documents
+[3] Retrieve Top-3 Documents
     ↓
 [4] Build Context + Prompt
     ↓
-[5] LLM Generation (Groq LLaMA 3.3)
+[5] LLM Generation (Groq)
     ↓
 [6] Return Answer + Sources
 ```
+
+### Agentic RAG Pipeline (LangGraph)
+
+```
+                    USER QUESTION
+                         │
+                         ▼
+                ┌─────────────────┐
+                │  analyze_query  │  ← Normalize query for retrieval
+                └────────┬────────┘
+                         │
+                         ▼
+              ┌────────────────────┐
+              │ retrieve_documents │  ← Pinecone top-5, user namespace
+              └────────┬───────────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ grade_documents │  ← LLM relevance scoring
+              └───────┬─────────┘
+                     ╱ ╲
+                    ╱   ╲
+            RELEVANT     NOT RELEVANT
+              │            │
+              ▼            ▼
+     ┌─────────────┐  ┌──────────────┐
+     │  generate   │  │ rewrite_query│ ← Improve search terms
+     │   answer    │  └──────┬───────┘
+     └──────┬──────┘         │
+            │                ▼
+            │         retrieve_documents
+            │                │
+            │                ▼
+            │         grade_documents
+            │                │
+            ├────────────────┘
+            │
+            ▼
+      FINAL RESPONSE
+     Answer + Sources
+    + Agent Metadata
+```
+
+**Key Design:**
+- Maximum **2 retrieval attempts** (bounded, no infinite loops)
+- Relevance threshold: **0.6** (score 0.0–1.0)
+- If still insufficient after max retries → generates safe "information not found" response
+- Graceful fallback to Standard RAG on pipeline failure
 
 ### Document Upload Flow
 
@@ -434,12 +538,19 @@ The system is designed with safety constraints:
 - [ ] User registration and login
 - [ ] Document upload (PDF)
 - [ ] Document deletion
-- [ ] Chat query with valid documents
+- [ ] Chat query with valid documents (Standard RAG)
+- [ ] Chat query with valid documents (Agentic RAG)
 - [ ] Chat query without documents (404 error)
 - [ ] Multi-language query
 - [ ] Analytics dashboard updates
 - [ ] Token refresh on expiration
 - [ ] Role-based prompt differences
+- [ ] Agentic RAG — query rewrite triggers on poor retrieval
+- [ ] Agentic RAG — max retry limit (2 attempts) is respected
+- [ ] Agentic RAG — unrelated question returns "not found" (no hallucination)
+- [ ] Agentic RAG — user isolation (only retrieves from own namespace)
+- [ ] Agentic RAG — graceful fallback to Standard RAG on error
+- [ ] Mode selector UI toggles correctly between Standard and Agentic
 
 ### API Testing
 
@@ -471,7 +582,9 @@ This project is for educational and portfolio purposes.
 
 ## 🚀 Future Enhancements
 
+- [x] ~~Agentic RAG with LangGraph~~ ✅ Implemented
 - [ ] Streaming responses in chat
+- [ ] Agentic RAG streaming (step-by-step live updates via SSE/WebSocket)
 - [ ] Document OCR support for scanned PDFs
 - [ ] Voice input/output
 - [ ] Mobile app (React Native)
@@ -481,6 +594,7 @@ This project is for educational and portfolio purposes.
 - [ ] Custom model fine-tuning
 - [ ] Multi-modal support (images, tables)
 - [ ] Real-time collaboration
+- [ ] Multi-agent workflows (research, summarize, compare agents)
 
 ---
 
@@ -492,4 +606,7 @@ For questions about this project, please open an issue on GitHub.
 
 **Built with ❤️ for medical professionals and students**
 
-*Powered by FastAPI, React, LangChain, Groq, and Pinecone*
+*Powered by FastAPI, React, LangChain, LangGraph, Groq, and Pinecone*
+
+
+python -m uvicorn app.main:app --reload

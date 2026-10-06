@@ -3,6 +3,7 @@ import api from './api';
 export interface ChatQuery {
     question: string;
     language?: string;
+    mode?: 'standard' | 'agentic';
 }
 
 export interface SourceDocument {
@@ -11,11 +12,22 @@ export interface SourceDocument {
     relevance_score?: number;
 }
 
+export interface AgentMetadata {
+    retrieval_attempts: number;
+    retrieval_refined: boolean;
+    documents_retrieved: number;
+    relevance_score: number;
+    steps: string[];
+    fallback_to_standard: boolean;
+}
+
 export interface ChatResponse {
     answer: string;
     sources: SourceDocument[];
     response_time: number;
     language: string;
+    mode?: string;
+    agent_metadata?: AgentMetadata | null;
 }
 
 export interface ChatHistoryItem {
